@@ -649,6 +649,9 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
         <button class="btn small" onclick="openClassify()">🗂 分類モード</button>
         <button class="btn sub small" onclick="openModal('mBank')">🏦 明細を取り込む</button>
         <button class="btn sub small" onclick="openTxModal()">＋ 手入力</button>
+        <button class="btn sub small" onclick="exportKakeiboCSV()">📤 エクスポート</button>
+        <button class="btn sub small" onclick="document.getElementById('kbImportFile').click()">📥 インポート</button>
+        <input type="file" id="kbImportFile" accept=".csv" style="display:none" onchange="importKakeiboCSV(event)">
       </div>
       <div id="kbToolbar">
         <input type="search" id="kbSearch" placeholder="🔍 店名・費目・取り込み元でさがす" autocomplete="off" aria-label="記録を検索">
@@ -2357,6 +2360,81 @@ function txMonthAmount(t,key){ // その月に計上される額（split12は取
   if(!start||!key) return 0;
   const sy=+start.slice(0,4), ky=+key.slice(0,4);
   return (ky===sy)? amt/12 : 0;
+}
+
+/* ---- 家計簿のエクスポート／インポート（CSV・現在のユーザーの全期間） ---- */
+const KB_CSV_HEADER=['日付','種類','金額','ジャンル','メモ','取得元','12か月分割'];
+function csvCell(v){ v=String(v??''); return /[",\n]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v; }
+function exportKakeiboCSV(){
+  const rows=liveTx().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(!rows.length){ toast('書き出せる記録がありません'); return; }
+  const lines=[KB_CSV_HEADER.join(',')];
+  rows.forEach(t=>{
+    lines.push([
+      t.date||'', t.type==='income'?'収入':'支出', Math.round(+t.amount||0),
+      t.type==='income'? '' : catName(t.catId), t.memo||'', t.source||'', t.split12? '○':''
+    ].map(csvCell).join(','));
+  });
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}); // BOM付きでExcelの文字化けを防ぐ
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='life-planner-家計簿-'+memberName(activeMember)+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast(rows.length+'件を書き出しました');
+}
+function kbCsvColIndex(header){
+  const idx={date:-1,type:-1,amount:-1,cat:-1,memo:-1,source:-1,split:-1};
+  header.forEach((h,i)=>{ const t=String(h).trim();
+    if(t.includes('日付')) idx.date=i;
+    else if(t.includes('種類')) idx.type=i;
+    else if(t.includes('金額')) idx.amount=i;
+    else if(t.includes('ジャンル')||t.includes('費目')) idx.cat=i;
+    else if(t.includes('メモ')) idx.memo=i;
+    else if(t.includes('取得元')||t.includes('取込元')) idx.source=i;
+    else if(t.includes('12')||t.includes('分割')) idx.split=i;
+  });
+  return idx;
+}
+function importKakeiboCSV(ev){
+  const file=ev.target.files[0]; ev.target.value=''; if(!file) return;
+  toast('取り込み中…');
+  const r=new FileReader();
+  r.onload=async ()=>{
+    try{
+      const rows=parseCSV(decodeBytes(r.result));
+      if(!rows.length) throw new Error('empty');
+      const idx=kbCsvColIndex(rows[0]);
+      if(idx.date<0||idx.amount<0) throw new Error('no header');
+      const sig=t=>`${t.date}|${t.amount}|${t.type}|${(t.memo||'').slice(0,24)}`;
+      const seen=new Set(liveTx().map(sig));
+      let added=0, skipped=0;
+      for(let i=1;i<rows.length;i++){
+        const row=rows[i]; if(!row||!row.length) continue;
+        const date=normDate(row[idx.date]); if(!date) continue;
+        const amount=Math.round(toNum(row[idx.amount])); if(!amount) continue;
+        const typeText= idx.type>=0? String(row[idx.type]||'') : '';
+        const type= typeText.includes('収入')? 'income':'expense';
+        const memo= idx.memo>=0? String(row[idx.memo]||'').trim() : '';
+        const source= idx.source>=0? String(row[idx.source]||'').trim() : 'インポート';
+        const split12= idx.split>=0 && /[○o1yYtT]/.test(String(row[idx.split]||'').trim());
+        const catText= idx.cat>=0? String(row[idx.cat]||'').trim() : '';
+        const t={date,amount,type,memo};
+        if(seen.has(sig(t))){ skipped++; continue; }
+        seen.add(sig(t));
+        let catId='';
+        if(type!=='income' && catText){
+          const found=cur.budget.cats.find(c=>c.name===catText);
+          catId= found? found.id : (addBudgetCat(catText,0)||'');
+        }
+        const id=uid();
+        cur.ledger[id]={id,date,amount,type,catId,memo,split12,source,updatedAt:now(),deleted:false};
+        added++;
+      }
+      afterChange();
+      toast(added? `${added}件を取り込みました（重複${skipped}件スキップ）` : 'すべて取り込み済みでした');
+    }catch(e){ toast('読み込めませんでした（書き出したCSVの形式か確認してください）'); }
+  };
+  r.readAsArrayBuffer(file);
 }
 document.getElementById('kbPrev').onclick=()=>{ kbYM.m--; if(kbYM.m<1){kbYM.m=12;kbYM.y--;} renderKakeibo(); };
 document.getElementById('kbNext').onclick=()=>{ kbYM.m++; if(kbYM.m>12){kbYM.m=1;kbYM.y++;} renderKakeibo(); };
