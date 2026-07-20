@@ -758,11 +758,12 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
           <input type="text" id="fbRoom" placeholder="例: taro-hanako-2026-Xy7kQ" style="flex:1;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px">
           <button class="btn sub" onclick="genRoom()">生成</button>
         </div></div>
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn" onclick="saveSyncSettings()">接続する</button>
+        <button class="btn sub" onclick="copyInviteLink()">🔗 招待リンクをコピー</button>
         <button class="btn warn" onclick="disconnectSync()">同期をやめる</button>
       </div>
-      <p class="hint" style="margin-top:10px">はじめての設定は <b>説明書.md</b> の手順どおりに Firebase の無料プロジェクトを作ってください（5分ほど）。パートナーにはこのアプリのURLと、同じ構成・あいことばを共有します。</p>
+      <p class="hint" style="margin-top:10px">接続できたら「🔗 招待リンクをコピー」でリンクをコピーし、LINEなどでパートナーに送ってください。<b>リンクを開くだけで自動的に同じ同期設定につながります</b>（構成やあいことばを手入力する必要はありません）。はじめての設定は <b>説明書.md</b> の手順どおりに Firebase の無料プロジェクトを作ってください（5分ほど）。</p>
     </div>
     <div class="card">
       <h2>📦 バックアップ</h2>
@@ -1225,6 +1226,48 @@ function disconnectSync(){
   localStorage.removeItem(LS_SYNC);
   setSyncStatus('none');
   toast('同期をやめました（データは端末に残っています）');
+}
+/* ---- 招待リンク：あいことば＋Firebase構成をURLに載せて共有。開くだけで自動接続 ---- */
+function b64encode(obj){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(obj))))); }
+function b64decode(s){ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(s))))); }
+function applySyncPayload(payload,opts){
+  if(!payload||!payload.config||!payload.room) return false;
+  syncCfg={config:payload.config,room:payload.room};
+  localStorage.setItem(LS_SYNC,JSON.stringify(syncCfg));
+  const cf=document.getElementById('fbConfig'), rm=document.getElementById('fbRoom');
+  if(cf) cf.value=JSON.stringify(syncCfg.config,null,2);
+  if(rm) rm.value=syncCfg.room;
+  connectSync();
+  if(!(opts&&opts.silent)) toast('同期の設定を取り込みました。接続しています…');
+  return true;
+}
+function copyInviteLink(){
+  if(!syncCfg.config||!syncCfg.room){ toast('先に「接続する」で同期を設定してください'); return; }
+  const url=location.origin+location.pathname+'?connect='+b64encode({config:syncCfg.config,room:syncCfg.room});
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(()=>toast('招待リンクをコピーしました。LINE等でパートナーに送ってください'),
+      ()=>promptCopy(url));
+  } else promptCopy(url);
+}
+function promptCopy(url){ window.prompt('このリンクをコピーしてパートナーに送ってください：',url); }
+function bootstrapSync(){ // ?connect= リンク / window.name 経由の自動セットアップ（あれば最優先で適用）。適用できたらtrueを返す
+  try{
+    const q=new URLSearchParams(location.search);
+    const c=q.get('connect');
+    if(c){
+      history.replaceState(null,'',location.pathname);
+      const ok=applySyncPayload(b64decode(c));
+      if(ok) return true;
+    }
+  }catch(e){ history.replaceState(null,'',location.pathname); toast('招待リンクを読み取れませんでした'); }
+  try{
+    if(window.name && window.name.indexOf('LIFEPLANNER_SYNC:')===0){
+      const ok=applySyncPayload(JSON.parse(window.name.slice('LIFEPLANNER_SYNC:'.length)),{silent:true});
+      window.name='';
+      if(ok) return true;
+    }
+  }catch(e){}
+  return false;
 }
 function genRoom(){
   const a='abcdefghjkmnpqrstuvwxyz23456789';
@@ -2934,7 +2977,7 @@ fillProfileInputs();
 renderAll();
 document.getElementById('fbRoom').value=syncCfg.room||'';
 document.getElementById('fbConfig').value=syncCfg.config? JSON.stringify(syncCfg.config,null,2):'';
-if(syncCfg.config&&syncCfg.room) connectSync(); else setSyncStatus('none');
+if(!bootstrapSync()){ if(syncCfg.config&&syncCfg.room) connectSync(); else setSyncStatus('none'); }
 document.getElementById('fab').onclick=()=>openPlaceModal();
 
 /* 共有ターゲット（Android: Instagram→共有→Life Planner） */
