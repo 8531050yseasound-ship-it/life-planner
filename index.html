@@ -1124,7 +1124,7 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
 <script>
 "use strict";
 /* ================= state ================= */
-const APP_VERSION='37'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
+const APP_VERSION='38'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
 const LS_KEY='lifePlanner.state.v1', LS_SYNC='lifePlanner.sync.v1';
 const CATS=['ごはん','カフェ','旅行','おでかけ','買い物','イベント','その他'];
 const now=()=>Date.now();
@@ -1712,6 +1712,64 @@ async function fetchRecipeMeta(url){ // YouTubeのみ：サムネ即決＋題名
     if(r2.ok){ const j2=await r2.json(); if(j2&&j2.title) meta.title=j2.title; } }catch(e){} }
   return meta;
 }
+function fetchWithTimeout(url,ms,opts){ const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms);
+  return fetch(url,{...(opts||{}),signal:ctl.signal}).finally(()=>clearTimeout(t)); }
+function descFromHtml(html){ const m=String(html).match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
+  if(m){ try{ return JSON.parse('"'+m[1]+'"'); }catch(e){} } return null; }
+async function fetchYtDescription(videoId){ // 概要欄の取得
+  try{ // 1) YouTube Data API（Firebase同期と同じプロジェクトのAPIキーを流用。確実・高速）
+    const key=syncCfg&&syncCfg.config&&syncCfg.config.apiKey;
+    if(key){
+      const res=await fetchWithTimeout('https://www.googleapis.com/youtube/v3/videos?part=snippet&id='+encodeURIComponent(videoId)+'&key='+encodeURIComponent(key),9000);
+      if(res.ok){ const j=await res.json();
+        const d=j.items&&j.items[0]&&j.items[0].snippet&&j.items[0].snippet.description;
+        if(d) return d; if(j.items&&j.items.length) return null; } // 動画はあるが概要欄が空
+    }
+  }catch(e){}
+  const target='https://www.youtube.com/watch?v='+videoId;
+  try{ // 2) 予備: Jina Reader（YouTubeが生HTMLを返した場合のみ概要欄を含む）
+    const res=await fetchWithTimeout('https://r.jina.ai/'+target,20000,{headers:{'x-return-format':'html'}});
+    if(res.ok){ const d=descFromHtml(await res.text()); if(d) return d; }
+  }catch(e){}
+  try{ // 3) 予備: allorigins
+    const res=await fetchWithTimeout('https://api.allorigins.win/raw?url='+encodeURIComponent(target),20000);
+    if(res.ok){ const d=descFromHtml(await res.text()); if(d) return d; }
+  }catch(e){}
+  return null;
+}
+function trimRecipeJunk(sec){ // 末尾のSNS宣伝・URL・ハッシュタグ・罫線だけを落とす（本文は削らない）
+  if(!sec) return '';
+  const lines=sec.split('\n');
+  const junk=/^(\s*|[-=＿_＝ー─―~～·•＊*]{3,}\s*|https?:\/\/\S+\s*|#\S+.*|.*(チャンネル登録|高評価|お仕事のご依頼|サブチャンネル|公式LINE|メンバーシップ).*|[▼■●○]?\s*(Twitter|Instagram|TikTok|X)\s*[:：@→].*)$/i;
+  while(lines.length && junk.test(lines[lines.length-1])) lines.pop();
+  return lines.join('\n').trim().slice(0,2500);
+}
+function parseRecipeFromDescription(desc){ // 「材料」「作り方」等の見出し（無ければ分量らしい行の連なり）を探す。無ければnull＝取り込まない
+  if(!desc||!desc.trim()) return null;
+  const text=desc.replace(/\r/g,'');
+  const ingRe=/(^|\n)[ \t]*[【\[（(◆■▼●○☆★・]*\s*(材料|Ingredients?)[^\n]*/i;
+  const stepRe=/(^|\n)[ \t]*[【\[（(◆■▼●○☆★・]*\s*(作り方|つくり方|手順|Instructions?|Directions?|Method)[^\n]*/i;
+  const mi=text.match(ingRe), si=text.match(stepRe);
+  const iIdx=mi? mi.index+(mi[1]?mi[1].length:0):-1;
+  const sIdx=si? si.index+(si[1]?si[1].length:0):-1;
+  let ing='', steps='';
+  if(iIdx>=0) ing=text.slice(iIdx, sIdx>iIdx? sIdx : undefined);
+  if(sIdx>=0) steps=text.slice(sIdx, iIdx>sIdx? iIdx : undefined);
+  if(iIdx<0 && sIdx<0){ // 見出しなし：分量らしい行が3行以上連続していれば材料とみなす（それ以外は無理に取らない）
+    const lines=text.split('\n');
+    const qty=/(大さじ|小さじ)\s*[\d０-９]|[\d０-９]+\s*(g|ｇ|kg|ml|ｍｌ|cc|個|本|枚|丁|片|玉|束|袋|缶|杯|合|人前)|適量|少々/;
+    let best={start:-1,len:0}, run=0, start=-1;
+    lines.forEach((ln,i)=>{
+      if(qty.test(ln)&&ln.trim().length>0&&ln.length<40){ if(run===0)start=i; run++; if(run>best.len)best={start,len:run}; }
+      else run=0;
+    });
+    if(best.len>=3) ing=lines.slice(best.start,best.start+best.len).join('\n');
+    if(!ing) return null;
+  }
+  ing=trimRecipeJunk(ing); steps=trimRecipeJunk(steps);
+  if(!ing&&!steps) return null;
+  return {ingredients:ing, steps};
+}
 function shrinkPhoto(file,cb){ // 端末写真→最大320px JPEGに圧縮（同期を軽く保つ）
   const img=new Image(), url=URL.createObjectURL(file);
   img.onload=()=>{ const scale=Math.min(1,320/img.width);
@@ -1784,17 +1842,36 @@ function openRecipeModal(id){
   rcPhoto=r?.photo||''; rcThumb=r?.thumb||''; rcSetPreview();
   openModal('mRecipe');
 }
+let rcFetchSeq=0;
 async function rcFetchFromUrl(){
   const url=document.getElementById('rcUrl').value.trim(); if(!url) return;
   const st=document.getElementById('rcFetchStatus');
-  if(ytId(url)){
+  const my=++rcFetchSeq; // 取得中にURLが変わったら結果を捨てる
+  const stale=()=> my!==rcFetchSeq || document.getElementById('rcUrl').value.trim()!==url;
+  const id=ytId(url);
+  if(id){
     st.textContent='YouTubeから取得中…';
     const meta=await fetchRecipeMeta(url);
-    if(meta){ rcThumb=meta.thumb; rcSetPreview();
-      const nameEl=document.getElementById('rcName');
-      if(meta.title && !nameEl.value.trim()) nameEl.value=meta.title.slice(0,80);
-      st.textContent='✅ サムネイル'+(meta.title?'と題名':'')+'を取得しました（材料・作り方は概要欄からコピーして貼り付けてください）'; }
-    else st.textContent='取得できませんでした（URLを確認してください）';
+    if(stale()) return;
+    if(!meta){ st.textContent='取得できませんでした（URLを確認してください）'; return; }
+    rcThumb=meta.thumb; rcSetPreview();
+    const nameEl=document.getElementById('rcName');
+    if(meta.title && !nameEl.value.trim()) nameEl.value=meta.title.slice(0,80);
+    // 概要欄からレシピを探す（見つからなければ何も埋めない）
+    st.textContent='✅ サムネイルと題名を取得。概要欄からレシピを探しています…';
+    let rec=null;
+    try{ rec=parseRecipeFromDescription(await fetchYtDescription(id)); }catch(e){}
+    if(stale()) return;
+    if(rec){
+      const ingEl=document.getElementById('rcIng'), stepsEl=document.getElementById('rcSteps');
+      let filled=[];
+      if(rec.ingredients && !ingEl.value.trim()){ ingEl.value=rec.ingredients; filled.push('材料'); }
+      if(rec.steps && !stepsEl.value.trim()){ stepsEl.value=rec.steps; filled.push('作り方'); }
+      st.textContent= filled.length? '✅ 概要欄から'+filled.join('・')+'を取り込みました（内容を確認してください）'
+        : '✅ サムネイルと題名を取得しました（材料・作り方は入力済みのため上書きしていません）';
+    }else{
+      st.textContent='✅ サムネイルと題名を取得しました（概要欄にレシピは見つかりませんでした。手で貼り付けてください）';
+    }
   } else if(/instagram\.com/.test(url)){
     st.textContent='Instagramは自動取得に対応していません。キャプションのレシピを貼り付け、写真は「📷写真を選ぶ」で追加してください';
   } else st.textContent='';
