@@ -1,5 +1,5 @@
 /* Life Planner service worker — app shell cache */
-const CACHE = 'life-planner-v36';
+const CACHE = 'life-planner-v37';
 const ASSETS = [
   './',
   './index.html',
