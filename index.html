@@ -105,6 +105,11 @@ nav.tabs button.active .ico{transform:translateY(-1px)}
 .mp-grid button.active{background:var(--green);border-color:var(--green);color:#fff}
 .mp-grid button:not(.active):hover{background:var(--surface2)}
 .mp-today{display:block;margin:14px auto 0;background:none;border:none;color:var(--green-deep);font-weight:700;font-size:13px}
+/* ユーザーロック（暗証番号）カバー */
+.locked-cover{display:none;text-align:center;padding:44px 20px}
+.locked-cover .lockico{font-size:46px;line-height:1}
+.tabpage.locked>*:not(.locked-cover){display:none!important}
+.tabpage.locked .locked-cover{display:block}
 /* happiness slider */
 .happy{display:flex;align-items:center;gap:10px}
 .happy input[type=range]{flex:1;accent-color:var(--gold)}
@@ -428,6 +433,8 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
   #page-settings>div:nth-child(2){grid-column:2;grid-row:1/span 3}
   #page-settings>div:nth-child(3){grid-column:1}
   #page-settings>div:nth-child(4){grid-column:1}
+  #page-settings>div:nth-child(5){grid-column:1}
+  #page-money.active.locked,#page-kakeibo.active.locked{display:block} /* ロック中はカバー1枚だけなのでグリッド解除 */
   /* 🗺️ 場所 */
   #placeList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
   #placeList .place{margin-bottom:0}
@@ -615,6 +622,13 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
       <div id="loanTableWrap" style="display:none;margin-top:12px;max-height:280px;overflow:auto"></div>
       <p class="hint" style="margin-top:10px">日本学生支援機構（JASSO）などの奨学金の返済計画です。第一種（無利子）は年利0、第二種（有利子）は年利を入れてください。毎月末に元利均等で返済する前提で計算します。この毎月の返済は、上の「資産シミュレーション」の貯蓄にも反映されます。</p>
     </div>
+
+    <div class="locked-cover card"><!-- 末尾に置く（デスクトップCSSのnth-child配置を崩さない） -->
+      <div class="lockico">🔒</div>
+      <p style="font-weight:900;margin:8px 0 4px"><span class="lc-name"></span> のプランはロックされています</p>
+      <p class="hint" style="margin-bottom:14px">見るには暗証番号が必要です</p>
+      <button class="btn" onclick="unlockActive()">暗証番号を入力</button>
+    </div>
   </section>
 
   <!-- ============ 家計簿 ============ -->
@@ -671,6 +685,13 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
         <div id="kbStatRow"><span id="kbStat">–</span><button type="button" id="kbReset" class="hidden">✕ 条件をクリア</button></div>
       </div>
       <div id="kbList"></div>
+    </div>
+
+    <div class="locked-cover card"><!-- 末尾に置く（デスクトップCSSのnth-child配置を崩さない） -->
+      <div class="lockico">🔒</div>
+      <p style="font-weight:900;margin:8px 0 4px"><span class="lc-name"></span> の家計簿はロックされています</p>
+      <p class="hint" style="margin-bottom:14px">見るには暗証番号が必要です</p>
+      <button class="btn" onclick="unlockActive()">暗証番号を入力</button>
     </div>
   </section>
 
@@ -780,6 +801,13 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
       <h2>🗑️ データの削除</h2>
       <button class="btn warn" onclick="wipeAll()">この端末のデータを全部消す</button>
       <p class="hint" style="margin-top:8px">同期中の場合、相手側のデータは消えません。</p>
+    </div>
+    <div class="card">
+      <h2>🔄 アプリの更新</h2>
+      <div class="statusline" style="margin-bottom:10px">いまのバージョン：<b id="appVer" style="margin-left:4px">–</b></div>
+      <div class="hint" id="updStatus" style="margin-bottom:10px"></div>
+      <button class="btn" onclick="checkForUpdate()">🔄 最新版にアップデート</button>
+      <p class="hint" style="margin-top:10px">押すと最新版があるか確認し、あれば自動で読み込み直して更新します（データは消えません）。新しいバージョンが出たときは起動時にもお知らせします。</p>
     </div>
   </section>
 </main>
@@ -992,6 +1020,20 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
   <div class="cl-targets" id="clTargets"></div>
 </div></div>
 
+<!-- ===== 暗証番号（ユーザーロック） ===== -->
+<div class="overlay" id="mPin"><div class="sheet" style="max-width:420px">
+  <h3 id="mPinTitle">🔒 暗証番号</h3>
+  <p class="hint" id="mPinDesc" style="margin-bottom:12px"></p>
+  <div class="field"><label>暗証番号（4桁以上の数字）</label>
+    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off"
+      style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:900"></div>
+  <div class="field" id="pinConfirmWrap" style="display:none"><label>もう一度入力</label>
+    <input type="password" id="pinInput2" inputmode="numeric" autocomplete="off"
+      style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:900"></div>
+  <div class="btns"><button class="btn sub" onclick="closePinModal()">やめる</button>
+    <button class="btn" id="pinOk">OK</button></div>
+</div></div>
+
 <!-- ===== 費目を追加 ===== -->
 <div class="overlay" id="mAddCat"><div class="sheet">
   <h3>➕ 費目を追加</h3>
@@ -1007,6 +1049,7 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
 <script>
 "use strict";
 /* ================= state ================= */
+const APP_VERSION='36'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
 const LS_KEY='lifePlanner.state.v1', LS_SYNC='lifePlanner.sync.v1';
 const CATS=['ごはん','カフェ','旅行','おでかけ','買い物','イベント','その他'];
 const now=()=>Date.now();
@@ -1283,11 +1326,12 @@ function showTab(name){
   document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
   const fab=document.getElementById('fab');
-  fab.classList.toggle('show', name==='places'||name==='money'||name==='kakeibo'||name==='joint');
+  const moneyLocked=(name==='money'||name==='kakeibo') && isLocked(activeMember);
+  fab.classList.toggle('show', (name==='places'||name==='money'||name==='kakeibo'||name==='joint') && !moneyLocked);
   fab.onclick= name==='money'? ()=>openEventModal() : name==='kakeibo'? ()=>openTxModal()
     : name==='joint'? ()=>openJtModal() : ()=>openPlaceModal();
-  if(name==='money'){ renderChart(); renderNisa(); drawLoanChart(); }
-  if(name==='kakeibo') renderKakeibo();
+  if(name==='money' && !moneyLocked){ renderChart(); renderNisa(); drawLoanChart(); }
+  if(name==='kakeibo' && !moneyLocked) renderKakeibo();
   if(name==='joint') renderJoint();
   window.scrollTo({top:0});
 }
@@ -1580,6 +1624,7 @@ const PF=['age','retireAge','endAge','savings','income','pension','expense'];
 const PFID={age:'pAge',retireAge:'pRetire',endAge:'pEnd',savings:'pSavings',income:'pIncome',pension:'pPension',expense:'pExpense'};
 const round1=v=>Math.round(v*10)/10;
 function fillProfileInputs(){
+  if(isLocked(activeMember)) return; // ロック中は数値をDOMに出さない
   PF.forEach(k=>{ document.getElementById(PFID[k]).value=cur.profile[k]; });
   document.getElementById('pExpenseM').value=round1((cur.profile.expense||0)/12);
   NF.forEach(k=>{ document.getElementById(NFID[k]).value=cur.nisa[k]; });
@@ -1820,7 +1865,7 @@ document.getElementById('btnTable').onclick=()=>{
   document.getElementById('btnTable').textContent=show?'表を閉じる':'表で見る';
   renderMoneyTable();
 };
-function renderMoney(){ renderBudget(); renderEventList(); renderChart(); renderNisa(); renderLoan(); }
+function renderMoney(){ if(isLocked(activeMember)) return; renderBudget(); renderEventList(); renderChart(); renderNisa(); renderLoan(); }
 
 /* ---- 奨学金の返済 ---- */
 const LF=['balance','monthly','rate'], LFID={balance:'loBalance',monthly:'loMonthly',rate:'loRate'};
@@ -2153,7 +2198,8 @@ function renderReview(){
     rank.map((p,i)=>`<div class="eventrow"><span class="age">${['🥇','🥈','🥉'][i]||(i+1)+'位'}</span>
       <span class="nm">${esc(p.name)}</span><span class="happy-chip">${p.actHappy}/10</span></div>`).join('')
     : '<p class="hint">まだ記録がありません。</p>';
-  // cospa
+  // cospa（ライフイベント＝ロック対象の個人データなので、ロック中は伏せる）
+  if(isLocked(activeMember)){ document.getElementById('cospaList').innerHTML='<p class="hint">🔒 ロック中のため非表示です。</p>'; return; }
   const evs=liveEvents().filter(e=>e.cost>0);
   const cospa=evs.map(e=>({...e,rate:e.happy/(e.cost/100)})).sort((a,b)=>b.rate-a.rate);
   document.getElementById('cospaList').innerHTML= cospa.length?
@@ -2173,12 +2219,18 @@ function renderMemberBars(){
   if(ed) ed.innerHTML=state.members.map(m=>`<div class="memrow">
     <input type="text" value="${esc(m.name)}" data-mrename="${m.id}" aria-label="ユーザー名">
     ${m.id===activeMember?'<span class="badge">選択中</span>':`<button class="btn sub small" data-msel="${m.id}">選ぶ</button>`}
+    ${m.pin&&m.pin.hash?`<button class="btn sub small" data-mpinrm="${m.id}" title="暗証番号を解除">🔒解除</button>`
+      :`<button class="btn sub small" data-mpinset="${m.id}" title="暗証番号でロック">🔒</button>`}
     ${state.members.length>1?`<button class="btn sub small" data-mdel="${m.id}" aria-label="削除">🗑</button>`:''}
   </div>`).join('');
   const bm=document.getElementById('bankMember'); if(bm) bm.textContent=memberName(activeMember);
 }
 function switchMember(id){
   if(!state.byMember[id]) return;
+  if(isLocked(id)){ openPinModal('unlock', id, ()=>reallySwitchMember(id)); return; } // 暗証番号ゲート
+  reallySwitchMember(id);
+}
+function reallySwitchMember(id){
   activeMember=id; localStorage.setItem(LS_MEMBER,id);
   useMember(); kbYM=null; renderAll(); toast(memberName(id)+' に切り替えました');
 }
@@ -2192,6 +2244,9 @@ document.getElementById('memberEdit').addEventListener('input',e=>{
 });
 document.getElementById('memberEdit').addEventListener('click',e=>{
   const sel=e.target.closest('[data-msel]'), del=e.target.closest('[data-mdel]');
+  const pinSet=e.target.closest('[data-mpinset]'), pinRm=e.target.closest('[data-mpinrm]');
+  if(pinSet){ openPinModal('set', pinSet.dataset.mpinset); return; }
+  if(pinRm){ openPinModal('remove', pinRm.dataset.mpinrm); return; }
   if(sel){ switchMember(sel.dataset.msel); showTab('settings'); return; }
   if(del){
     const id=del.dataset.mdel; const m=state.members.find(x=>x.id===id);
@@ -2208,6 +2263,111 @@ document.getElementById('memAdd').onclick=()=>{
   state.byMember[id]=defaultMoney();
   saveLocal(); scheduleSync(); switchMember(id);
 };
+
+/* ================= ユーザーロック（暗証番号でプラン・家計簿を非表示） =================
+   仕組み：各ユーザーに暗証番号(PIN)を設定できる。PINのハッシュだけを同期データに保存し、
+   「この端末で解錠済みか」は端末ローカル(LS_UNLOCK)に記録＝相手の端末では暗証番号を知らないと
+   そのユーザーのプラン・家計簿タブが🔒カバーで隠れる。※アプリ上の目隠しであり暗号化ではない。 */
+const LS_UNLOCK='lifePlanner.unlock.v1';
+let unlockedSet=new Set(); try{ unlockedSet=new Set(JSON.parse(localStorage.getItem(LS_UNLOCK))||[]); }catch(e){}
+function saveUnlocked(){ localStorage.setItem(LS_UNLOCK, JSON.stringify([...unlockedSet])); }
+function memberById(id){ return state.members.find(m=>m.id===id); }
+function isLocked(id){ const m=memberById(id); return !!(m&&m.pin&&m.pin.hash) && !unlockedSet.has(id); }
+async function pinDigest(pin,salt){
+  const data=salt+':'+pin;
+  if(crypto.subtle){
+    const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  let h=5381; for(const ch of data){ h=(Math.imul(h,33)^ch.codePointAt(0))>>>0; } return 'x'+h.toString(16); // 非https用フォールバック
+}
+let pinCtx=null; // {mode:'set'|'unlock'|'remove', mid, onSuccess}
+function openPinModal(mode,mid,onSuccess){
+  pinCtx={mode,mid,onSuccess:onSuccess||null};
+  const nm=memberName(mid);
+  const t=document.getElementById('mPinTitle'), d=document.getElementById('mPinDesc');
+  if(mode==='set'){ t.textContent='🔒 '+nm+' に暗証番号を設定'; d.textContent='この番号を知らない人には、'+nm+' のプラン・家計簿が表示されなくなります。各自が自分のユーザーに設定してください（忘れると自分でも開けなくなります）。'; }
+  else if(mode==='remove'){ t.textContent='🔓 '+nm+' のロックを解除'; d.textContent='現在の暗証番号を入力すると、ロック（暗証番号）を削除します。'; }
+  else { t.textContent='🔒 '+nm+' はロック中'; d.textContent='暗証番号を入力すると、この端末でロックを解除します。'; }
+  document.getElementById('pinConfirmWrap').style.display= mode==='set'? '':'none';
+  document.getElementById('pinInput').value=''; document.getElementById('pinInput2').value='';
+  openModal('mPin');
+  setTimeout(()=>document.getElementById('pinInput').focus(),60);
+}
+function closePinModal(){ pinCtx=null; closeModal('mPin'); }
+document.getElementById('pinOk').onclick=async ()=>{
+  if(!pinCtx) return;
+  const {mode,mid}=pinCtx, m=memberById(mid); if(!m){ closePinModal(); return; }
+  const pin=document.getElementById('pinInput').value.trim();
+  if(!/^\d{4,}$/.test(pin)){ toast('4桁以上の数字で入力してください'); return; }
+  if(mode==='set'){
+    if(document.getElementById('pinInput2').value.trim()!==pin){ toast('2回の入力が一致しません'); return; }
+    const salt=uid().replace(/-/g,'').slice(0,8);
+    m.pin={hash:await pinDigest(pin,salt),salt}; m.updatedAt=now();
+    unlockedSet.add(mid); saveUnlocked(); // 設定した端末では解錠済み扱い
+    saveLocal(); scheduleSync();
+    const cb=pinCtx.onSuccess; closePinModal(); renderAll();
+    toast('🔒 ロックを設定しました'); if(cb)cb();
+    return;
+  }
+  const h=await pinDigest(pin,m.pin.salt);
+  if(h!==m.pin.hash){ toast('暗証番号が違います'); document.getElementById('pinInput').value=''; return; }
+  if(mode==='remove'){ delete m.pin; m.updatedAt=now(); saveLocal(); scheduleSync();
+    const cb=pinCtx.onSuccess; closePinModal(); renderAll(); toast('🔓 ロックを解除（削除）しました'); if(cb)cb(); return; }
+  unlockedSet.add(mid); saveUnlocked(); // unlock：この端末に記憶
+  const cb=pinCtx.onSuccess; closePinModal(); renderAll(); toast('ロックを解除しました'); if(cb)cb();
+};
+document.getElementById('pinInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ if(pinCtx&&pinCtx.mode==='set') document.getElementById('pinInput2').focus(); else document.getElementById('pinOk').click(); } });
+document.getElementById('pinInput2').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('pinOk').click(); });
+function unlockActive(){ openPinModal('unlock', activeMember, null); }
+
+/* ================= アプリのワンボタン更新 =================
+   最新の index.html を直接取得して APP_VERSION を比較。新しければキャッシュを消して読み込み直す。 */
+async function fetchLatestVersion(){
+  const res=await fetch(location.pathname+'?upd='+Date.now(),{cache:'no-store'}); // ?upd= はSWが素通しする
+  const text=await res.text();
+  const m=text.match(/APP_VERSION='(\d+)'/);
+  return m? m[1]:null;
+}
+async function applyUpdate(){
+  try{ if('serviceWorker' in navigator){ const reg=await navigator.serviceWorker.getRegistration(); if(reg) await reg.update(); } }catch(e){}
+  try{ if(window.caches){ const keys=await caches.keys(); for(const k of keys) await caches.delete(k); } }catch(e){}
+  setTimeout(()=>location.reload(),200);
+}
+async function checkForUpdate(){
+  const st=document.getElementById('updStatus');
+  if(st) st.textContent='確認中…';
+  try{
+    const latest=await fetchLatestVersion();
+    if(latest && latest===APP_VERSION){
+      if(st) st.textContent='最新版です（v'+APP_VERSION+'）';
+      toast('すでに最新版です');
+      return;
+    }
+    if(st) st.textContent= latest? `新しいバージョン v${latest} に更新しています…`:'更新を適用しています…';
+    toast('更新しています…');
+    await applyUpdate();
+  }catch(e){
+    if(st) st.textContent='確認できませんでした（オフラインの可能性があります）';
+    toast('更新を確認できませんでした');
+  }
+}
+setTimeout(async ()=>{ // 起動時にひっそり新版チェック→あればワンタップ更新を提案
+  try{
+    if(!navigator.onLine) return;
+    const latest=await fetchLatestVersion();
+    if(latest && latest!==APP_VERSION) toast('新しいバージョンがあります','更新する',()=>checkForUpdate());
+  }catch(e){}
+},3000);
+function updateLockCovers(){ // プラン・家計簿タブに🔒カバーを掛ける/外す
+  const locked=isLocked(activeMember), nm=memberName(activeMember);
+  document.getElementById('page-money').classList.toggle('locked',locked);
+  document.getElementById('page-kakeibo').classList.toggle('locked',locked);
+  document.querySelectorAll('.locked-cover .lc-name').forEach(e=>e.textContent=nm);
+  const act=document.querySelector('.tabpage.active');
+  const name=act? act.id.replace('page-',''):'';
+  if((name==='money'||name==='kakeibo') && locked) document.getElementById('fab').classList.remove('show');
+}
 
 /* ================= 家計簿（ledger） ================= */
 let kbYM=null, editingTxId=null;
@@ -2244,6 +2404,7 @@ function renderKakeiboPie(byCat,total){
       <span class="nm">${esc(e.name)}</span><span class="amt">${yen(e.amount)}</span><span class="pct">${pct}%</span></div>`; }).join('');
 }
 function renderKakeibo(){
+  if(isLocked(activeMember)) return; // ロック中は描画しない（🔒カバー表示）
   if(!kbYM){ const d=new Date(); kbYM={y:d.getFullYear(),m:d.getMonth()+1}; }
   document.getElementById('kbMonth').textContent=kbYM.y+'年'+kbYM.m+'月';
   const key=ymKey(kbYM.y,kbYM.m);
@@ -3047,12 +3208,17 @@ document.getElementById('jrDelete').onclick=()=>{
     if(rr){ rr.deleted=false; rr.active=true; rr.updatedAt=now(); } materializeJointRecurring(); state.joint.updatedAt=now(); afterChange(); toast('元に戻しました'); });
 };
 
-function renderAll(){ useMember(); renderMemberBars(); applyBudgetToExpense(); renderPlaces(); fillProfileInputs(); renderMoney(); renderKakeibo(); renderJoint(); renderReview(); }
-window.addEventListener('resize',()=>{ if(document.getElementById('page-money').classList.contains('active')){ renderChart(); renderNisa(); drawLoanChart(); } });
+function renderAll(){ useMember(); renderMemberBars(); updateLockCovers(); applyBudgetToExpense(); renderPlaces(); fillProfileInputs(); renderMoney(); renderKakeibo(); renderJoint(); renderReview(); }
+window.addEventListener('resize',()=>{ if(document.getElementById('page-money').classList.contains('active') && !isLocked(activeMember)){ renderChart(); renderNisa(); drawLoanChart(); } });
+if(isLocked(activeMember)){ // 起動時：前回のユーザーがロック中なら、開けるユーザーに切り替える（全員ロックなら🔒カバー表示のまま）
+  const alt=state.members.find(m=>!isLocked(m.id));
+  if(alt){ activeMember=alt.id; localStorage.setItem(LS_MEMBER,activeMember); useMember(); }
+}
 applyBudgetToExpense();
 materializeJointRecurring(); saveLocal(); // 起動時に固定費の反映・費目移行などを保存
 fillProfileInputs();
 renderAll();
+document.getElementById('appVer').textContent='v'+APP_VERSION;
 document.getElementById('fbRoom').value=syncCfg.room||'';
 document.getElementById('fbConfig').value=syncCfg.config? JSON.stringify(syncCfg.config,null,2):'';
 if(!bootstrapSync()){ if(syncCfg.config&&syncCfg.room) connectSync(); else setSyncStatus('none'); }

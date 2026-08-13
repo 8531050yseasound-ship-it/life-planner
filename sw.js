@@ -1,5 +1,5 @@
 /* Life Planner service worker — app shell cache */
-const CACHE = 'life-planner-v35';
+const CACHE = 'life-planner-v36';
 const ASSETS = [
   './',
   './index.html',
@@ -25,6 +25,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.searchParams.has('upd')) return; // アプリの更新チェックはキャッシュを介さず素通し
   e.respondWith(
     caches.match(e.request).then(cached => {
       const fresh = fetch(e.request).then(res => {
