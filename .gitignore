@@ -1,1 +1,3 @@
 server.js
+.claude/
+*取り込み用*.json
