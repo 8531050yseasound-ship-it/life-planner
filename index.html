@@ -125,6 +125,10 @@ nav.tabs button.active .ico{transform:translateY(-1px)}
 .rv-sec pre{white-space:pre-wrap;font-family:inherit;font-size:13.5px;background:var(--bg);border-radius:10px;padding:10px 12px;line-height:1.7;margin:0}
 /* 7タブでも375pxで収まるように */
 @media(max-width:419.98px){ nav.tabs button{font-size:9.5px;letter-spacing:-.3px} }
+/* 招待リンク貼り付け・iOS案内 */
+#invitePasteText{width:100%;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;word-break:break-all}
+#mInvitePaste .btns button,#mIosHome .btns button{white-space:nowrap;padding-left:10px;padding-right:10px}
+.ios-steps{margin:0 0 14px 1.3em;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.55}
 /* 同期の状態カード */
 .syncgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
 .syncgrid>div{background:var(--bg);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -825,8 +829,9 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
         <button class="btn" onclick="copyInviteLink()">🔗 招待リンクをコピー</button>
         <button class="btn sub" onclick="syncNow()">🔄 いま同期</button>
+        <button class="btn sub" onclick="openInvitePaste()">📋 招待リンクを貼り付けてつなぐ</button>
       </div>
-      <p class="hint" style="margin-top:10px">同期のしかた：どちらかの端末で「🔗 招待リンクをコピー」→ LINEなどで相手に送る → 相手は<b>リンクを開くだけ</b>。<b>ふたりの端末の「部屋コード」が同じなら、同じデータを見ています。</b>違うときは、正しい方の端末から招待リンクを送り直すと、開いた端末の記録を持ったまま同じ部屋に合流します。<br>※スマホで「ホーム画面に追加」したアプリと、ブラウザで開いたアプリは<b>別の端末として扱われます</b>。普段使う方（ホーム画面のアプリ）でリンクを開いてください。</p>
+      <p class="hint" style="margin-top:10px">同期のしかた：どちらかの端末で「🔗 招待リンクをコピー」→ LINEなどで相手に送る → 相手は<b>リンクを開くだけ</b>。<b>ふたりの端末の「部屋コード」が同じなら、同じデータを見ています。</b>違うときは、正しい方の端末から招待リンクを送り直すと、開いた端末の記録を持ったまま同じ部屋に合流します。<br>※スマホで「ホーム画面に追加」したアプリと、ブラウザで開いたアプリは<b>別の端末として扱われます</b>。<b>iPhone／iPadのホーム画面のアプリはリンクから開けない</b>ので、招待リンクをコピーしてからホーム画面のアプリを開き「📋 招待リンクを貼り付けてつなぐ」を使ってください。</p>
       <details class="foldcard" id="syncAdv" style="margin:12px 0 0;box-shadow:none;border:1px solid var(--line)">
         <summary><span class="ftitle">🛠 詳細設定（Firebase 構成・あいことば）</span><span class="fsum"></span><span class="chev">▾</span></summary>
         <div class="foldbody">
@@ -1116,6 +1121,33 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
   </div>
 </div></div>
 
+<!-- ===== 招待リンクの貼り付け（ホーム画面のアプリ用） ===== -->
+<div class="overlay" id="mInvitePaste"><div class="sheet" style="max-width:480px">
+  <h3>📋 招待リンクでつなぐ</h3>
+  <p class="hint" style="margin-bottom:10px">LINEなどで届いた招待リンク（<code>…?connect=…</code>）をコピーして、ここに貼り付けてください。</p>
+  <div class="field"><textarea id="invitePasteText" rows="4" placeholder="https://…/life-planner/?connect=…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></div>
+  <div class="btns" style="flex-wrap:wrap">
+    <button class="btn sub" onclick="closeInvitePaste(true)">あとで</button>
+    <button class="btn sub" id="invitePasteClip">📋 貼り付け</button>
+    <button class="btn" onclick="submitInvitePaste()">つなぐ</button>
+  </div>
+</div></div>
+
+<!-- ===== iPhone：ホーム画面に追加するときの案内 ===== -->
+<div class="overlay" id="mIosHome"><div class="sheet" style="max-width:480px">
+  <h3>📱 ホーム画面に追加して使う場合</h3>
+  <p class="hint" style="margin-bottom:10px">iPhone／iPadでは、Safariとホーム画面のアプリは<b>別の保存場所</b>です。いまSafariで同期がつながりましたが、ホーム画面に追加したアプリは<b>まだつながっていません</b>。次の手順でつないでください。</p>
+  <ol class="ios-steps">
+    <li>下のボタンで<b>招待リンクをコピー</b></li>
+    <li>Safariの共有ボタン <b>⬆︎</b> →「<b>ホーム画面に追加</b>」</li>
+    <li>ホーム画面のアプリを開く → 出てくる画面で「<b>📋 貼り付け</b>」</li>
+  </ol>
+  <div class="btns" style="flex-wrap:wrap">
+    <button class="btn sub" onclick="closeModal('mIosHome')">閉じる</button>
+    <button class="btn" onclick="copyInviteLink()">🔗 招待をコピー</button>
+  </div>
+</div></div>
+
 <!-- ===== 暗証番号（ユーザーロック） ===== -->
 <div class="overlay" id="mPin"><div class="sheet" style="max-width:420px">
   <h3 id="mPinTitle">🔒 暗証番号</h3>
@@ -1145,7 +1177,7 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
 <script>
 "use strict";
 /* ================= state ================= */
-const APP_VERSION='40'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
+const APP_VERSION='41'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
 const LS_KEY='lifePlanner.state.v1', LS_SYNC='lifePlanner.sync.v1';
 const CATS=['ごはん','カフェ','旅行','おでかけ','買い物','イベント','その他'];
 const now=()=>Date.now();
@@ -1327,7 +1359,7 @@ function setSyncStatus(kind,msg){
 }
 function renderSyncInfo(){
   const el=document.getElementById('syncInfo'); if(!el) return;
-  if(!syncCfg.room){ el.innerHTML='<p class="hint">まだどの部屋にもつながっていません。パートナーから届いた<b>招待リンクを開く</b>と、そのままつながります。</p>'; return; }
+  if(!syncCfg.room){ el.innerHTML='<p class="hint">まだどの部屋にもつながっていません。パートナーから届いた<b>招待リンクを開く</b>か、ホーム画面のアプリなら「📋 招待リンクを貼り付けてつなぐ」でつながります。</p>'; return; }
   const c=countState(state), r=sync.remoteCounts, tot=x=>x.ledger+x.places+x.recipes+x.joint;
   el.innerHTML=`<div class="syncgrid">
     <div><span class="k">部屋コード</span><b class="roomfp">${roomFp(syncCfg.room)}</b><span class="hint">ふたりの端末で同じなら同じ部屋</span></div>
@@ -1511,11 +1543,46 @@ function applySyncPayload(payload,opts){
 function copyInviteLink(){
   if(!syncCfg.config||!syncCfg.room){ toast('この端末はまだ同期していません。相手の端末から招待リンクを送ってもらってください'); return; }
   const url=location.origin+location.pathname+'?connect='+b64encode({config:syncCfg.config,room:syncCfg.room});
-  const done=()=>toast('招待リンクをコピーしました。相手は「ホーム画面のアプリ」ではなくブラウザで開くことがあるので、開いた側の部屋コードが '+roomFp(syncCfg.room)+' になっているか確認してください');
+  const ios=document.getElementById('mIosHome').classList.contains('open');
+  const done=()=>{ if(ios){ closeModal('mIosHome'); toast('コピーしました。共有 ⬆︎ →「ホーム画面に追加」→ ホーム画面のアプリで「📋 貼り付け」'); return; }
+    toast('招待リンクをコピーしました。相手がiPhoneのホーム画面のアプリで使う場合は、アプリ内の「📋 招待リンクを貼り付けてつなぐ」に貼ってもらってください（部屋コード '+roomFp(syncCfg.room)+'）'); };
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done,()=>promptCopy(url)); }
   else promptCopy(url);
 }
 function promptCopy(url){ window.prompt('このリンクをコピーしてパートナーに送ってください：',url); }
+/* ---- iPhone のホーム画面アプリ対策：Safariと保存場所が別なので、招待リンクを貼り付けてつなぐ入口 ---- */
+const LS_INVITE_SKIP='lifePlanner.inviteSkip.v1';
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
+function isStandalone(){ return window.navigator.standalone===true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); }
+function parseInviteText(text){ // 招待リンク（またはその一部）から同期設定を取り出す。読めなければ null
+  const m=String(text||'').match(/[?&#]connect=([^&#\s"'<>]+)/) || String(text||'').trim().match(/^([A-Za-z0-9%+/=_-]{40,})$/);
+  if(!m) return null;
+  try{ const p=b64decode(m[1]); return (p&&p.config&&p.room)? p : null; }catch(e){ return null; }
+}
+function openInvitePaste(){ document.getElementById('invitePasteText').value=''; openModal('mInvitePaste'); }
+function closeInvitePaste(skip){ if(skip) try{ localStorage.setItem(LS_INVITE_SKIP,String(Date.now())); }catch(e){} closeModal('mInvitePaste'); }
+function submitInvitePaste(){
+  const p=parseInviteText(document.getElementById('invitePasteText').value);
+  if(!p){ toast('招待リンクを読み取れませんでした。「…?connect=…」を含むリンク全体を貼り付けてください'); return; }
+  closeModal('mInvitePaste');
+  applySyncPayload(p);
+}
+document.getElementById('invitePasteClip').onclick=async ()=>{
+  try{
+    const t=await navigator.clipboard.readText();
+    document.getElementById('invitePasteText').value=t||'';
+    if(parseInviteText(t)) submitInvitePaste(); else toast('クリップボードに招待リンクがありません。欄に長押しで貼り付けてください');
+  }catch(e){ toast('クリップボードを読めませんでした。欄を長押しして「ペースト」してください'); document.getElementById('invitePasteText').focus(); }
+};
+function maybePromptInvite(){ // ホーム画面のアプリで未接続なら、起動時に貼り付け画面を出す（「あとで」で3日間出さない）
+  if(syncCfg.room || !isStandalone()) return;
+  let skip=0; try{ skip=+localStorage.getItem(LS_INVITE_SKIP)||0; }catch(e){}
+  if(Date.now()-skip < 3*86400000) return;
+  setTimeout(openInvitePaste,400);
+}
+function maybeIosHomeGuide(){ // iPhoneのSafariで招待を受け取ったら、ホーム画面のアプリ用の手順を案内
+  if(isIOS() && !isStandalone()) setTimeout(()=>openModal('mIosHome'),900);
+}
 function bootstrapSync(){ // ?connect= リンク / window.name 経由の自動セットアップ（あれば最優先で適用）。適用できたらtrueを返す
   try{
     const q=new URLSearchParams(location.search);
@@ -1523,7 +1590,7 @@ function bootstrapSync(){ // ?connect= リンク / window.name 経由の自動�
     if(c){
       history.replaceState(null,'',location.pathname);
       const ok=applySyncPayload(b64decode(c));
-      if(ok) return true;
+      if(ok){ maybeIosHomeGuide(); return true; }
     }
   }catch(e){ history.replaceState(null,'',location.pathname); toast('招待リンクを読み取れませんでした'); }
   try{
@@ -3684,7 +3751,7 @@ fillProfileInputs();
 renderAll();
 document.getElementById('appVer').textContent='v'+APP_VERSION;
 fillSyncInputs();
-if(!bootstrapSync()){ if(syncCfg.config&&syncCfg.room) connectSync(); else setSyncStatus('none'); }
+if(!bootstrapSync()){ if(syncCfg.config&&syncCfg.room) connectSync(); else { setSyncStatus('none'); maybePromptInvite(); } }
 document.getElementById('fab').onclick=()=>openPlaceModal();
 
 /* 共有ターゲット（Android: Instagram→共有→Life Planner） */
