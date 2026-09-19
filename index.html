@@ -125,6 +125,14 @@ nav.tabs button.active .ico{transform:translateY(-1px)}
 .rv-sec pre{white-space:pre-wrap;font-family:inherit;font-size:13.5px;background:var(--bg);border-radius:10px;padding:10px 12px;line-height:1.7;margin:0}
 /* 7タブでも375pxで収まるように */
 @media(max-width:419.98px){ nav.tabs button{font-size:9.5px;letter-spacing:-.3px} }
+/* 同期の状態カード */
+.syncgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.syncgrid>div{background:var(--bg);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.syncgrid .k{font-size:11px;color:var(--ink3);font-weight:700}
+.syncgrid b{font-size:15px;line-height:1.3}
+.syncgrid .roomfp{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:3px;color:var(--green-deep);font-size:20px}
+.syncgrid .hint{font-size:11px;line-height:1.4}
+#syncAdv>summary{padding:10px 12px}
 /* ユーザーロック（暗証番号）カバー */
 .locked-cover{display:none;text-align:center;padding:44px 20px}
 .locked-cover .lockico{font-size:46px;line-height:1}
@@ -811,21 +819,32 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
       <button class="btn sub small" id="memAdd" style="margin-top:10px">＋ ユーザーを追加</button>
     </div>
     <div class="card">
-      <h2>🔄 ふたりで同期（Firebase）</h2>
-      <div class="statusline" style="margin-bottom:12px"><span class="dot" id="setDot"></span><span id="setLabel">未設定：この端末の中だけに保存されています</span></div>
-      <div class="field"><label>Firebase 構成（firebaseConfig の { … } を貼り付け）</label>
-        <textarea id="fbConfig" rows="5" placeholder='{ "apiKey": "...", "projectId": "...", ... }'></textarea></div>
-      <div class="field"><label>あいことば（ふたりで同じものを入力）</label>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="fbRoom" placeholder="例: taro-hanako-2026-Xy7kQ" style="flex:1;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px">
-          <button class="btn sub" onclick="genRoom()">生成</button>
-        </div></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn" onclick="saveSyncSettings()">接続する</button>
-        <button class="btn sub" onclick="copyInviteLink()">🔗 招待リンクをコピー</button>
-        <button class="btn warn" onclick="disconnectSync()">同期をやめる</button>
+      <h2>🔄 ふたりで同期</h2>
+      <div class="statusline" style="margin-bottom:10px"><span class="dot" id="setDot"></span><span id="setLabel">未設定：この端末の中だけに保存されています</span></div>
+      <div id="syncInfo"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn" onclick="copyInviteLink()">🔗 招待リンクをコピー</button>
+        <button class="btn sub" onclick="syncNow()">🔄 いま同期</button>
       </div>
-      <p class="hint" style="margin-top:10px">接続できたら「🔗 招待リンクをコピー」でリンクをコピーし、LINEなどでパートナーに送ってください。<b>リンクを開くだけで自動的に同じ同期設定につながります</b>（構成やあいことばを手入力する必要はありません）。はじめての設定は <b>説明書.md</b> の手順どおりに Firebase の無料プロジェクトを作ってください（5分ほど）。</p>
+      <p class="hint" style="margin-top:10px">同期のしかた：どちらかの端末で「🔗 招待リンクをコピー」→ LINEなどで相手に送る → 相手は<b>リンクを開くだけ</b>。<b>ふたりの端末の「部屋コード」が同じなら、同じデータを見ています。</b>違うときは、正しい方の端末から招待リンクを送り直すと、開いた端末の記録を持ったまま同じ部屋に合流します。<br>※スマホで「ホーム画面に追加」したアプリと、ブラウザで開いたアプリは<b>別の端末として扱われます</b>。普段使う方（ホーム画面のアプリ）でリンクを開いてください。</p>
+      <details class="foldcard" id="syncAdv" style="margin:12px 0 0;box-shadow:none;border:1px solid var(--line)">
+        <summary><span class="ftitle">🛠 詳細設定（Firebase 構成・あいことば）</span><span class="fsum"></span><span class="chev">▾</span></summary>
+        <div class="foldbody">
+          <p class="hint" style="margin-bottom:10px">招待リンクが使えないときや、Firebase を自分で用意したときだけ使う設定です。</p>
+          <div class="field"><label>Firebase 構成（firebaseConfig の { … } を貼り付け）</label>
+            <textarea id="fbConfig" rows="4" placeholder='{ "apiKey": "...", "projectId": "...", ... }'></textarea></div>
+          <div class="field"><label>あいことば（部屋の名前・ふたりで同じもの）</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="fbRoom" placeholder="例: taro-hanako-2026-Xy7kQ" style="flex:1;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px">
+              <button class="btn sub" onclick="genRoom()">生成</button>
+            </div></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn" onclick="saveSyncSettings()">この設定で接続する</button>
+            <button class="btn warn" onclick="disconnectSync()">同期をやめる</button>
+          </div>
+          <p class="hint" style="margin-top:8px">⚠ 新しいあいことばで接続すると<b>別の部屋</b>になり、パートナーとは同期されません。同じデータを見るには招待リンクを使ってください。</p>
+        </div>
+      </details>
     </div>
     <div class="card">
       <h2>📦 バックアップ</h2>
@@ -1126,7 +1145,7 @@ table.plain td:first-child,table.plain th:first-child{text-align:left}
 <script>
 "use strict";
 /* ================= state ================= */
-const APP_VERSION='39'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
+const APP_VERSION='40'; // sw.js の CACHE 版と揃えて上げる（更新チェックが読む）
 const LS_KEY='lifePlanner.state.v1', LS_SYNC='lifePlanner.sync.v1';
 const CATS=['ごはん','カフェ','旅行','おでかけ','買い物','イベント','その他'];
 const now=()=>Date.now();
@@ -1241,7 +1260,8 @@ function mergeMoney(a,b){ a=normalizeMoney(a); b=normalizeMoney(b);
   return { profile:pickNewer(a.profile,b.profile), nisa:pickNewer(a.nisa,b.nisa),
     budget:pickNewer(a.budget,b.budget), loan:pickNewer(a.loan,b.loan), events:mergeMap(a.events,b.events), ledger:mergeMap(a.ledger,b.ledger), learn:mergeMap(a.learn,b.learn) }; }
 function mergeState(a,b){
-  const m={members:[], byMember:{}, places:mergeMap(a.places,b.places), recipes:mergeMap(a.recipes||{},b.recipes||{})};
+  a=a||{}; b=b||{};
+  const m={...a,...b, members:[], byMember:{}, places:mergeMap(a.places,b.places), recipes:mergeMap(a.recipes||{},b.recipes||{})}; // 未知のキーは残す（将来の項目を古い端末経由で落とさない）
   const mIds=new Set([...(a.members||[]).map(x=>x.id),...(b.members||[]).map(x=>x.id)]);
   for(const id of mIds){
     const x=(a.members||[]).find(z=>z.id===id), y=(b.members||[]).find(z=>z.id===id);
@@ -1259,17 +1279,43 @@ function mergeState(a,b){
 }
 function afterChange(){ saveLocal(); scheduleSync(); renderAll(); }
 
-/* ================= sync (Firebase) ================= */
+/* ================= sync (Firebase) =================
+   設計メモ（2026-09-19 改修：複数端末で「PCの入力がスマホに出ない」対策）
+   ・書き込みは常に「サーバーの最新を読む→こちらとマージ→書く」トランザクション。古い状態の端末が全体を上書きして
+     他端末の入力を消すことがなくなる。オフライン時は端末に保存だけして、オンライン復帰・画面復帰時に再送。
+   ・差分判定はキー順に依存しない正規化JSON（Firestoreはキー順を保持しないため、以前は常に「差分あり」と誤判定して
+     端末間で書き合いが起きていた）。
+   ・画面復帰／オンライン復帰／60秒ごとにサーバーから読み直す（スマホのバックグラウンド後に接続が固まる対策）。
+   ・「部屋コード」（あいことばの短い指紋）を表示し、端末ごとに別の部屋につながっている事故を見えるようにする。
+   ・別の部屋につながっている端末で招待リンクを開いたら、その端末の記録を持って新しい部屋へ合流し、旧部屋に転送先を残す。
+     旧部屋を見ている端末は次に開いたとき自動で追従する（転送先は places の削除済み要素として保存＝古いバージョンの
+     mergeMap でも消えず、一覧にも出ない）。 */
 let syncCfg={config:null,room:''};
 try{ syncCfg=JSON.parse(localStorage.getItem(LS_SYNC))||syncCfg; }catch(e){}
-const fb={app:null,db:null,ref:null,setDoc:null,unsub:null};
+const fb={appM:null,fs:null,apps:{},db:null,ref:null,unsub:null};
+const sync={kind:'none',lastServerAt:0,lastPushAt:0,pending:false,pushing:false,fails:0,snaps:[],pausedUntil:0,remoteCounts:null,hb:null,hops:0,following:false};
 let pushTimer=null;
+const FWD_ID='__forward__';
+const FB_APP_URL='https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+const FB_FS_URL='https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+function canon(v){ // キー順に依存しないJSON（差分判定用）
+  if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
+  if(v&&typeof v==='object') return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+  return v===undefined? 'null' : JSON.stringify(v);
+}
+function roomFp(room){ let h=5381; for(const ch of String(room||'')) h=(Math.imul(h,33)^ch.codePointAt(0))>>>0; return h.toString(36).slice(-4).toUpperCase().padStart(4,'0'); }
+function agoText(t){ if(!t) return '—'; const s=Math.round((Date.now()-t)/1000); if(s<60) return 'いま'; if(s<3600) return Math.floor(s/60)+'分前'; if(s<86400) return Math.floor(s/3600)+'時間前'; return Math.floor(s/86400)+'日前'; }
+function countState(s){ const live=o=>Object.values(o||{}).filter(x=>x&&!x.deleted).length;
+  return {ledger:Object.values((s&&s.byMember)||{}).reduce((n,b)=>n+live(b&&b.ledger),0), places:live(s&&s.places), recipes:live(s&&s.recipes), joint:live(s&&s.joint&&s.joint.txns)}; }
+function isOfflineErr(e){ const c=(e&&e.code)||''; return c==='unavailable'||c==='deadline-exceeded'||/offline|network|unavailable|Failed to fetch/i.test(String((e&&e.message)||e)); }
 
 function setSyncStatus(kind,msg){
+  const fp= syncCfg.room? roomFp(syncCfg.room):'';
   const map={
     none:['','同期なし','未設定：この端末の中だけに保存されています'],
     busy:['busy','接続中…','Firebaseに接続しています…'],
-    ok:['ok','同期中','同期できています。相手の変更も自動で反映されます'],
+    ok:['ok','同期中'+(fp?' · '+fp:''),'同期できています。相手の変更も自動で反映されます'],
     err:['err','エラー','同期エラー：'+(msg||'接続できません')]
   };
   const [cls,badge,detail]=map[kind]||map.none;
@@ -1277,38 +1323,143 @@ function setSyncStatus(kind,msg){
   document.getElementById('syncLabel').textContent=badge;
   document.getElementById('setDot').className='dot '+cls;
   document.getElementById('setLabel').textContent=detail;
+  sync.kind=kind; renderSyncInfo();
+}
+function renderSyncInfo(){
+  const el=document.getElementById('syncInfo'); if(!el) return;
+  if(!syncCfg.room){ el.innerHTML='<p class="hint">まだどの部屋にもつながっていません。パートナーから届いた<b>招待リンクを開く</b>と、そのままつながります。</p>'; return; }
+  const c=countState(state), r=sync.remoteCounts, tot=x=>x.ledger+x.places+x.recipes+x.joint;
+  el.innerHTML=`<div class="syncgrid">
+    <div><span class="k">部屋コード</span><b class="roomfp">${roomFp(syncCfg.room)}</b><span class="hint">ふたりの端末で同じなら同じ部屋</span></div>
+    <div><span class="k">サーバーと最後に確認</span><b>${agoText(sync.lastServerAt)}</b><span class="hint">${sync.pending?'未送信の変更あり（オンラインで自動送信）':(sync.pausedUntil>Date.now()?'往復が多いため一時停止中':'')}</span></div>
+    <div><span class="k">この端末の記録</span><b>${tot(c)}件</b><span class="hint">家計簿${c.ledger}・場所${c.places}・レシピ${c.recipes}・折半${c.joint}</span></div>
+    <div><span class="k">サーバー側の記録</span><b>${r? tot(r)+'件':'—'}</b><span class="hint">${r?`家計簿${r.ledger}・場所${r.places}・レシピ${r.recipes}・折半${r.joint}`:'まだ確認していません'}</span></div>
+  </div>`;
+}
+function fillSyncInputs(){
+  const cf=document.getElementById('fbConfig'), rm=document.getElementById('fbRoom');
+  if(cf) cf.value=syncCfg.config? JSON.stringify(syncCfg.config,null,2):'';
+  if(rm) rm.value=syncCfg.room||'';
+}
+async function fbInit(){ // Firebase SDK の読み込みと、projectId ごとのアプリ/DB（招待で別プロジェクトに移っても動く）
+  if(!fb.fs){ const mock=window.__lpFsMock; fb.appM= mock|| await import(FB_APP_URL); fb.fs= mock|| await import(FB_FS_URL); }
+  const key=(syncCfg.config&&syncCfg.config.projectId)||'default';
+  if(!fb.apps[key]){
+    const app=fb.appM.initializeApp(syncCfg.config,'lp-'+key);
+    const db=fb.fs.initializeFirestore(app,{localCache:fb.fs.persistentLocalCache({tabManager:fb.fs.persistentMultipleTabManager()})});
+    fb.apps[key]={app,db};
+  }
+  fb.db=fb.apps[key].db;
 }
 async function connectSync(){
   if(!syncCfg.config||!syncCfg.room){ setSyncStatus('none'); return; }
   setSyncStatus('busy');
   try{
-    const appM=await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
-    const fsM =await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
-    if(!fb.app) fb.app=appM.initializeApp(syncCfg.config);
-    if(!fb.db)  fb.db=fsM.initializeFirestore(fb.app,{localCache:fsM.persistentLocalCache({tabManager:fsM.persistentMultipleTabManager()})});
-    fb.ref=fsM.doc(fb.db,'rooms',syncCfg.room);
-    fb.setDoc=fsM.setDoc;
-    if(fb.unsub) fb.unsub();
-    fb.unsub=fsM.onSnapshot(fb.ref, snap=>{
-      if(snap.exists()){
-        const remote=snap.data();
-        const merged=mergeState(remote,state);
-        const needPush=JSON.stringify(merged)!==JSON.stringify(remote);
-        state=merged; saveLocal(); renderAll();
-        if(needPush) pushNow();
-      }else pushNow();
+    await fbInit();
+    fb.ref=fb.fs.doc(fb.db,'rooms',syncCfg.room);
+    if(fb.unsub){ fb.unsub(); fb.unsub=null; }
+    fb.unsub=fb.fs.onSnapshot(fb.ref, snap=>{
+      const fromCache=!!(snap.metadata&&snap.metadata.fromCache);
+      if(!fromCache) sync.lastServerAt=Date.now();
+      noteSnap();
+      if(snap.exists()){ if(applyRemote(snap.data(),fromCache) && !pushPaused()) pushNow(); }
+      else if(!fromCache && !pushPaused()) pushNow(); // 部屋がまだ無い：この端末の内容で作る（サーバー確認後のみ）
       setSyncStatus('ok');
     }, err=>setSyncStatus('err',err.code||err.message));
+    startHeartbeat();
   }catch(e){ setSyncStatus('err',e.message); }
 }
-function pushNow(){
-  if(!fb.ref||!fb.setDoc) return;
-  fb.setDoc(fb.ref,state).catch(e=>setSyncStatus('err',e.code||e.message));
+function applyRemote(remote,fromCache){ // サーバー（またはキャッシュ）の内容を取り込む。こちらから送るべき差分があれば true
+  const fwd=remote&&remote.places&&remote.places[FWD_ID]&&remote.places[FWD_ID].forwardTo;
+  if(fwd && fwd!==syncCfg.room && !fromCache){ followForward(fwd); return false; }
+  if(!fromCache) sync.remoteCounts=countState(remote);
+  const merged=mergeState(remote,state);
+  if(canon(merged)!==canon(state)){ state=merged; useMember(); saveLocal(); renderAll(); } else renderSyncInfo();
+  return !fromCache && canon(merged)!==canon(remote);
+}
+function noteSnap(){ // 古いバージョンの端末と書き合い続ける事故（無限往復）を止める安全弁
+  const t=Date.now(); sync.snaps=sync.snaps.filter(x=>t-x<60000); sync.snaps.push(t);
+  if(sync.snaps.length>12 && sync.pausedUntil<t){ sync.pausedUntil=t+120000; sync.snaps=[];
+    toast('同期の往復が多すぎるため2分間ひと休みします。相手の端末のアプリが古い可能性があります（設定→最新版にアップデート）'); }
+}
+function pushPaused(){ return sync.pausedUntil>Date.now(); }
+async function pushNow(){ // サーバーの最新とマージして書く（全体上書きをしない）
+  if(!fb.ref||!fb.fs) return;
+  if(sync.pushing){ sync.pending=true; return; }
+  sync.pushing=true; sync.pending=false;
+  try{
+    const merged=await fb.fs.runTransaction(fb.db, async tx=>{
+      const s=await tx.get(fb.ref);
+      const m= s.exists()? mergeState(s.data(),state) : mergeState({},state);
+      if(s.exists() && canon(m)===canon(s.data())) return m; // 送る差分なし
+      tx.set(fb.ref,m); return m;
+    });
+    sync.fails=0; sync.lastPushAt=sync.lastServerAt=Date.now(); sync.remoteCounts=countState(merged);
+    if(canon(merged)!==canon(state)){ state=merged; useMember(); saveLocal(); renderAll(); }
+    setSyncStatus('ok');
+  }catch(e){
+    sync.pending=true; sync.fails++;
+    if(isOfflineErr(e)) renderSyncInfo(); else setSyncStatus('err',e.code||e.message);
+    const wait=Math.min(60000,1500*Math.pow(2,Math.min(sync.fails,6)));
+    if(navigator.onLine) setTimeout(()=>{ if(sync.pending&&!pushPaused()) pushNow(); },wait);
+  }finally{
+    sync.pushing=false;
+    if(sync.pending && sync.fails===0 && !pushPaused()) setTimeout(()=>{ if(sync.pending) pushNow(); },300); // 送信中に新しい変更があった
+  }
 }
 function scheduleSync(){
   if(!fb.ref) return;
   clearTimeout(pushTimer);
   pushTimer=setTimeout(pushNow,800);
+}
+async function refreshFromServer(){ // サーバーから読み直して取り込む（画面復帰・オンライン復帰・定期・手動）
+  if(!syncCfg.config||!syncCfg.room) return false;
+  if(sync.kind==='err'||!fb.ref){ await connectSync(); return true; }
+  if(!navigator.onLine){ renderSyncInfo(); return false; }
+  try{
+    const s=await fb.fs.getDocFromServer(fb.ref); sync.lastServerAt=Date.now();
+    if(s.exists()){ if(applyRemote(s.data(),false) && !pushPaused()) pushNow(); }
+    else if(!pushPaused()) pushNow();
+    if(sync.pending && !pushPaused()) pushNow();
+    setSyncStatus('ok'); return true;
+  }catch(e){ if(!isOfflineErr(e)) setSyncStatus('err',e.code||e.message); else renderSyncInfo(); return false; }
+}
+function startHeartbeat(){ clearInterval(sync.hb); sync.hb=setInterval(()=>{ if(document.visibilityState==='visible') refreshFromServer(); },60000); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') refreshFromServer(); });
+window.addEventListener('online',()=>refreshFromServer());
+window.addEventListener('pageshow',e=>{ if(e.persisted) refreshFromServer(); });
+async function syncNow(){
+  if(!syncCfg.room){ toast('まだ同期を設定していません。招待リンクを開いてください'); return; }
+  toast('サーバーと確認しています…');
+  const ok=await refreshFromServer();
+  toast(ok? '同期できています（部屋 '+roomFp(syncCfg.room)+'）' : 'いまはサーバーに届きません。オンラインになると自動で同期します');
+}
+async function switchRoom(newRoom,opts){ // 部屋を移る。writeForward=true なら旧部屋に転送先を残す（旧部屋の端末は次に開いたとき追従）
+  opts=opts||{};
+  const oldRoom=syncCfg.room;
+  if(fb.unsub){ fb.unsub(); fb.unsub=null; }
+  if(opts.writeForward && oldRoom && oldRoom!==newRoom && syncCfg.config){
+    try{
+      await fbInit(); const oldRef=fb.fs.doc(fb.db,'rooms',oldRoom);
+      await fb.fs.runTransaction(fb.db, async tx=>{
+        const s=await tx.get(oldRef); const cur=s.exists()? s.data():{};
+        const places={...(cur.places||{})}; places[FWD_ID]={id:FWD_ID,deleted:true,forwardTo:newRoom,updatedAt:now()};
+        tx.set(oldRef,{...cur,places});
+      });
+    }catch(e){ /* 旧部屋に書けなくても移動は続ける */ }
+  }
+  syncCfg={config:opts.config||syncCfg.config,room:newRoom};
+  localStorage.setItem(LS_SYNC,JSON.stringify(syncCfg));
+  sync.remoteCounts=null; sync.pending=true; fb.ref=null; // 新しい部屋にこの端末の記録を合流させる（接続時のトランザクションでマージ）
+  fillSyncInputs();
+  await connectSync();
+}
+async function followForward(newRoom){
+  if(sync.following) return;
+  if(sync.hops>=3){ setSyncStatus('err','部屋の転送がループしています'); return; }
+  sync.following=true; sync.hops++;
+  toast('この部屋は「'+roomFp(newRoom)+'」に統合されています。移動します…');
+  try{ await switchRoom(newRoom,{writeForward:false}); }finally{ sync.following=false; }
 }
 function saveSyncSettings(){
   const raw=document.getElementById('fbConfig').value.trim();
@@ -1320,40 +1471,49 @@ function saveSyncSettings(){
     try{ cfg=(new Function('return ('+raw+')'))(); }catch(e2){ toast('構成を読めません。{ } の中身ごと貼ってください'); return; }
   }
   if(!cfg.projectId||!cfg.apiKey){ toast('projectId / apiKey が見つかりません'); return; }
-  syncCfg={config:cfg,room};
-  localStorage.setItem(LS_SYNC,JSON.stringify(syncCfg));
-  toast('接続しています…');
-  connectSync();
+  applySyncPayload({config:cfg,room});
 }
 function disconnectSync(){
+  if(!confirm('この端末の同期をやめます（データは端末に残ります）。よろしいですか？')) return;
   if(fb.unsub) fb.unsub();
-  fb.ref=null;
+  fb.unsub=null; fb.ref=null; clearInterval(sync.hb); sync.pending=false; sync.remoteCounts=null;
   syncCfg={config:null,room:''};
   localStorage.removeItem(LS_SYNC);
-  setSyncStatus('none');
+  fillSyncInputs(); setSyncStatus('none');
   toast('同期をやめました（データは端末に残っています）');
 }
 /* ---- 招待リンク：あいことば＋Firebase構成をURLに載せて共有。開くだけで自動接続 ---- */
 function b64encode(obj){ return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(obj))))); }
 function b64decode(s){ return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(s))))); }
 function applySyncPayload(payload,opts){
+  opts=opts||{};
   if(!payload||!payload.config||!payload.room) return false;
+  const connected=!!(syncCfg.room&&syncCfg.config);
+  const same= connected && syncCfg.room===payload.room && syncCfg.config.projectId===payload.config.projectId;
+  if(same){
+    if(!opts.silent) toast('この端末はすでに同じ部屋（'+roomFp(payload.room)+'）につながっています');
+    if(!fb.ref) connectSync(); else refreshFromServer();
+    return true;
+  }
+  if(connected){ // 別の部屋につながっている端末で招待を開いた → 記録を持って合流し、旧部屋に転送先を残す
+    const c=countState(state), n=c.ledger+c.places+c.recipes+c.joint;
+    const ok=confirm(`この端末はいま部屋「${roomFp(syncCfg.room)}」につながっています。\n招待された部屋「${roomFp(payload.room)}」に移動しますか？\n\nこの端末の記録（${n}件）は新しい部屋に持ち込んで合流させます。もとの部屋を見ている端末も、次に開いたときに自動で新しい部屋へ移ります。`);
+    if(!ok){ toast('移動しませんでした（いまの部屋のままです）'); return true; }
+    switchRoom(payload.room,{writeForward:true,config:payload.config}).then(()=>toast('部屋「'+roomFp(payload.room)+'」に移動し、記録を合流させました'));
+    return true;
+  }
   syncCfg={config:payload.config,room:payload.room};
   localStorage.setItem(LS_SYNC,JSON.stringify(syncCfg));
-  const cf=document.getElementById('fbConfig'), rm=document.getElementById('fbRoom');
-  if(cf) cf.value=JSON.stringify(syncCfg.config,null,2);
-  if(rm) rm.value=syncCfg.room;
-  connectSync();
-  if(!(opts&&opts.silent)) toast('同期の設定を取り込みました。接続しています…');
+  sync.pending=true; fillSyncInputs(); connectSync();
+  if(!opts.silent) toast('招待を受け取りました。部屋「'+roomFp(payload.room)+'」に接続しています…');
   return true;
 }
 function copyInviteLink(){
-  if(!syncCfg.config||!syncCfg.room){ toast('先に「接続する」で同期を設定してください'); return; }
+  if(!syncCfg.config||!syncCfg.room){ toast('この端末はまだ同期していません。相手の端末から招待リンクを送ってもらってください'); return; }
   const url=location.origin+location.pathname+'?connect='+b64encode({config:syncCfg.config,room:syncCfg.room});
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(()=>toast('招待リンクをコピーしました。LINE等でパートナーに送ってください'),
-      ()=>promptCopy(url));
-  } else promptCopy(url);
+  const done=()=>toast('招待リンクをコピーしました。相手は「ホーム画面のアプリ」ではなくブラウザで開くことがあるので、開いた側の部屋コードが '+roomFp(syncCfg.room)+' になっているか確認してください');
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done,()=>promptCopy(url)); }
+  else promptCopy(url);
 }
 function promptCopy(url){ window.prompt('このリンクをコピーしてパートナーに送ってください：',url); }
 function bootstrapSync(){ // ?connect= リンク / window.name 経由の自動セットアップ（あれば最優先で適用）。適用できたらtrueを返す
@@ -1376,6 +1536,7 @@ function bootstrapSync(){ // ?connect= リンク / window.name 経由の自動�
   return false;
 }
 function genRoom(){
+  if(syncCfg.room && !confirm('新しいあいことばを作ると「別の部屋」になり、パートナーとは同期されません。\nパートナーと同じ部屋に入るには招待リンクを使ってください。\n\nそれでも新しく作りますか？')) return;
   const a='abcdefghjkmnpqrstuvwxyz23456789';
   let r=''; for(let i=0;i<10;i++) r+=a[Math.floor(Math.random()*a.length)];
   document.getElementById('fbRoom').value='life-'+r;
@@ -3522,8 +3683,7 @@ materializeJointRecurring(); saveLocal(); // 起動時に固定費の反映・�
 fillProfileInputs();
 renderAll();
 document.getElementById('appVer').textContent='v'+APP_VERSION;
-document.getElementById('fbRoom').value=syncCfg.room||'';
-document.getElementById('fbConfig').value=syncCfg.config? JSON.stringify(syncCfg.config,null,2):'';
+fillSyncInputs();
 if(!bootstrapSync()){ if(syncCfg.config&&syncCfg.room) connectSync(); else setSyncStatus('none'); }
 document.getElementById('fab').onclick=()=>openPlaceModal();
 
